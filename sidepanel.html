@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>翻译助手</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">🌐 翻译助手</h1>
+
+    <div class="no-tab" id="noTab">
+      <p>请先打开一个网页</p>
+      <p class="hint">打开任意网页后点击扩展图标使用</p>
+    </div>
+
+    <div class="main-content" id="mainContent">
+      <div class="selector-group">
+        <label class="label" for="fromLang">从</label>
+        <select id="fromLang" class="select"></select>
+      </div>
+
+      <div class="swap-area">
+        <button id="swapBtn" class="swap-btn" title="交换语言">⇄</button>
+      </div>
+
+      <div class="selector-group">
+        <label class="label" for="toLang">到</label>
+        <select id="toLang" class="select"></select>
+      </div>
+
+      <button id="translateBtn" class="translate-btn">翻译页面</button>
+      <button id="restoreBtn" class="restore-btn" style="display:none">恢复原文</button>
+
+      <div id="status" class="status"></div>
+    </div>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

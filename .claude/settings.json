@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(magick --version)",
+      "Bash(convert --version)",
+      "Bash(node generate_icon.js)",
+      "Bash(rm \"d:\\\\ClawWork\\\\google-plugin-E-Z\\\\generate_icon.js\" && ls -la \"d:\\\\ClawWork\\\\google-plugin-E-Z\\\\\")",
+      "Read(//d/ClawWork/**)",
+      "WebFetch(domain:www.cnbc.com)",
+      "Bash(curl -s -L \"https://www.cnbc.com/world/?region=world\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" --max-time 15)",
+      "Bash(grep -v '^\\\\s*$')",
+      "Bash(grep -v '^\\\\s*//')",
+      "Bash(node -e ' *)",
+      "Bash(node analyze_page.js)",
+      "Bash(node analyze_page2.js)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const h=fs.readFileSync\\('C:/Users/17688/.claude/projects/d--ClawWork-google-plugin-E-Z/e4119e08-e100-4f29-8817-94211f51693f/tool-results/b8jyohdjo.txt','utf8'\\);console.log\\('Template tags:',\\(h.match\\(/<template/g\\)||[]\\).length\\);console.log\\('Custom elements:',\\(h.match\\(/<[a-z]+-[a-z]+/g\\)||[]\\).length\\);console.log\\('iframe:',\\(h.match\\(/<iframe/g\\)||[]\\).length\\);\")",
+      "Bash(node gen_icon.js)"
+    ]
+  }
+}
