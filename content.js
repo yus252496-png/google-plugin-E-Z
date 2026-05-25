@@ -77,8 +77,8 @@ async function translatePage(from, to) {
   let actualTranslated = 0;
   let failCount = 0;
 
-  // Translate in batches (each text translated individually in background)
-  const BATCH_SIZE = 16;
+  // Translate in batches
+  const BATCH_SIZE = 20;
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
     // Check if stop was requested
     if (stopRequested) {

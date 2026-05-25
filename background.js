@@ -1,25 +1,25 @@
-// MyMemory 翻译 API（国内可访问，无需 API Key）
+// translate.zvo.cn 翻译 API（国内可访问，无需 API Key）
+// 基于 translate.js 社区代理，后端使用硅基流动 AI 模型
 const LANG_MAP = {
-  'auto': 'en',   // 自动检测默认使用英语
-  'zh-CN': 'zh-CN',
-  'en': 'en',
-  'ja': 'ja',
-  'ko': 'ko',
-  'es': 'es',
-  'fr': 'fr',
-  'de': 'de',
-  'ru': 'ru',
-  'pt': 'pt',
-  'ar': 'ar',
-  'it': 'it',
-  'th': 'th',
-  'vi': 'vi',
-  'hi': 'hi',
+  'zh-CN': 'chinese_simplified',
+  'en': 'english',
+  'ja': 'japanese',
+  'ko': 'korean',
+  'es': 'spanish',
+  'fr': 'french',
+  'de': 'german',
+  'ru': 'russian',
+  'pt': 'portuguese',
+  'ar': 'arabic',
+  'it': 'italian',
+  'th': 'thai',
+  'vi': 'vietnamese',
+  'hi': 'hindi',
 };
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'translateBatch') {
     translateBatch(request.texts, request.from, request.to)
       .then((translations) => sendResponse({ translations }))
@@ -33,58 +33,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function translateBatch(texts, from, to) {
   const results = [];
-  // 分组顺序执行，每组 4 个并行（避免触发频率限制）
-  for (let i = 0; i < texts.length; i += 4) {
-    const batch = texts.slice(i, i + 4);
-    const batchResults = await Promise.all(
-      batch.map((text) => translateOne(text, from, to))
-    );
+
+  // 分批翻译，每批最多 20 段文本
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const batchResults = await translateOneBatch(batch, from, to);
     results.push(...batchResults);
-    // 每组之间间隔 200ms，降低触发频率限制概率
-    if (i + 4 < texts.length) {
-      await new Promise((r) => setTimeout(r, 200));
-    }
+    console.debug('[翻译助手] 翻译进度:', results.length, '/', texts.length);
   }
+
   return results;
 }
 
-async function translateOne(text, from, to) {
-  const safeText = text.length > 1000 ? text.substring(0, 1000) : text;
-  const fromCode = LANG_MAP[from] || 'en';
-  const toCode = LANG_MAP[to] || 'zh-CN';
+async function translateOneBatch(texts, from, to) {
+  const fromCode = from && from !== 'auto' ? LANG_MAP[from] : null;
+  const toCode = LANG_MAP[to] || 'chinese_simplified';
 
-  try {
-    const response = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(safeText)}&langpair=${fromCode}|${toCode}&mt=1`,
-      {
-        method: 'GET',
+  // 构建请求参数
+  const params = new URLSearchParams();
+  params.set('to', toCode);
+  if (fromCode) {
+    params.set('from', fromCode);
+  }
+  params.set('text', JSON.stringify(texts));
+
+  // 带重试的 API 调用
+  let lastError = null;
+  for (let retry = 0; retry < 2; retry++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s 超时
+
+      const response = await fetch('https://api.translate.zvo.cn/translate.json', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
-      }
-    );
+        body: params,
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.warn('[翻译助手] MyMemory 频率限制，等待后重试');
-        await new Promise((r) => setTimeout(r, 1000));
-        return ''; // 返回空，下次重试时会重新请求
-      }
-      console.warn('[翻译助手] MyMemory 请求失败:', response.status);
-      return '';
-    }
+      clearTimeout(timeoutId);
 
-    const data = await response.json();
-    if (data && data.responseData && data.responseData.translatedText) {
-      const result = data.responseData.translatedText;
-      if (data.quotaFinished) {
-        console.warn('[翻译助手] MyMemory 每日配额已用完');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-      return result;
+
+      const data = await response.json();
+      if (data.result === 1 && data.text && Array.isArray(data.text)) {
+        // 确保返回数组长度匹配
+        while (data.text.length < texts.length) {
+          data.text.push('');
+        }
+        return data.text.slice(0, texts.length);
+      }
+      throw new Error(data.info || 'API 返回异常');
+    } catch (e) {
+      lastError = e;
+      console.warn('[翻译助手] 翻译请求失败 (重试', retry + 1, '/ 2):', e.message);
+      // 重试前等待
+      await new Promise((r) => setTimeout(r, 2000));
     }
-    return '';
-  } catch (e) {
-    console.warn('[翻译助手] MyMemory 请求异常:', e.message);
-    return '';
   }
+
+  console.error('[翻译助手] 翻译请求全部失败:', lastError.message);
+  // 全部失败，返回空字符串数组
+  return texts.map(() => '');
 }
