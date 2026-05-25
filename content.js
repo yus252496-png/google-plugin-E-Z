@@ -8,6 +8,23 @@
   let stopRequested = false;
   let translationObserver = null;
 
+const LANG_MAP = {
+  'zh-CN': 'chinese_simplified',
+  'en': 'english',
+  'ja': 'japanese',
+  'ko': 'korean',
+  'es': 'spanish',
+  'fr': 'french',
+  'de': 'german',
+  'ru': 'russian',
+  'pt': 'portuguese',
+  'ar': 'arabic',
+  'it': 'italian',
+  'th': 'thai',
+  'vi': 'vietnamese',
+  'hi': 'hindi',
+};
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'translatePage') {
     if (isTranslating) {
@@ -89,24 +106,47 @@ async function translatePage(from, to) {
     const batchEntries = entries.slice(i, i + BATCH_SIZE);
     const texts = batchEntries.map((e) => e.text);
 
-    // Retry up to 2 times on failure
+    // Call API directly from content script to avoid service worker 30s idle timeout
     let result = null;
     for (let retry = 0; retry < 2; retry++) {
       try {
-        result = await chrome.runtime.sendMessage({
-          action: 'translateBatch',
-          texts: texts,
-          from: from,
-          to: to,
+        const params = new URLSearchParams();
+        params.set('to', LANG_MAP[to] || 'chinese_simplified');
+        if (from && from !== 'auto') params.set('from', LANG_MAP[from]);
+        params.set('text', JSON.stringify(texts));
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        const response = await fetch('https://api.translate.zvo.cn/translate.json', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          body: params,
+          signal: controller.signal,
         });
-        if (result && result.translations) break;
-        if (result && result.error && retry === 0) {
-          console.warn('[翻译助手] API 返回错误, 重试中:', result.error);
-          await new Promise((r) => setTimeout(r, 500));
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const data = await response.json();
+        if (data.result === 1 && data.text && Array.isArray(data.text)) {
+          // Ensure response array length matches input
+          while (data.text.length < texts.length) {
+            data.text.push('');
+          }
+          result = { translations: data.text.slice(0, texts.length) };
+          break;
+        }
+        throw new Error(data.info || 'API 返回异常');
       } catch (e) {
-        console.warn('[翻译助手] API 请求异常, 重试中:', e.message);
-        await new Promise((r) => setTimeout(r, 500));
+        console.warn('[翻译助手] API 请求失败 (重试', retry + 1, '/ 2):', e.message);
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
 
