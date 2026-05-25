@@ -156,6 +156,19 @@ body {
   pointer-events: none;
 }
 
+/* Stop mode */
+.translate-btn.stop-mode {
+  background: #e03131;
+}
+
+.translate-btn.stop-mode:hover {
+  background: #c92a2a;
+}
+
+.translate-btn.stop-mode:active {
+  transform: scale(0.98);
+}
+
 /* Restore button */
 .restore-btn {
   width: 100%;

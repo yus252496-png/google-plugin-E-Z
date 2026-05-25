@@ -5,6 +5,7 @@
   let originalTexts = new Map();
   let translatedTexts = new Map();
   let isTranslating = false;
+  let stopRequested = false;
   let translationObserver = null;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -14,6 +15,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return false;
     }
     isTranslating = true;
+    stopRequested = false;
     translatePage(request.from, request.to)
       .then((result) => {
         isTranslating = false;
@@ -24,6 +26,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: error.message });
       });
     return true;
+  }
+  if (request.action === 'stopTranslate') {
+    stopRequested = true;
+    sendResponse({ success: true });
+    return false;
   }
   if (request.action === 'restorePage') {
     restoreOriginal();
@@ -73,6 +80,12 @@ async function translatePage(from, to) {
   // Translate in batches (each text translated individually in background)
   const BATCH_SIZE = 16;
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    // Check if stop was requested
+    if (stopRequested) {
+      console.debug('[翻译助手] 用户已停止翻译');
+      break;
+    }
+
     const batchEntries = entries.slice(i, i + BATCH_SIZE);
     const texts = batchEntries.map((e) => e.text);
 

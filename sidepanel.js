@@ -141,8 +141,23 @@ async function sendToContentScript(tabId, action, data) {
   }
 }
 
-// Handle translate button click
+let translationActive = false;
+
+// Handle translate / stop button click
 translateBtn.addEventListener('click', async () => {
+  // If currently translating, stop instead
+  if (translationActive) {
+    const tab = await getActiveTab();
+    if (tab) {
+      await sendToContentScript(tab.id, 'stopTranslate', {});
+      translationActive = false;
+      translateBtn.textContent = '翻译页面';
+      translateBtn.classList.remove('stop-mode');
+      showStatus('⏸️ 翻译已暂停', 'info');
+    }
+    return;
+  }
+
   const tab = await getActiveTab();
   if (!isValidTab(tab)) {
     showStatus('没有可翻译的页面', 'error');
@@ -157,16 +172,20 @@ translateBtn.addEventListener('click', async () => {
     return;
   }
 
-  translateBtn.disabled = true;
-  translateBtn.classList.add('translating');
-  translateBtn.textContent = '翻译中...';
+  // Switch to stop mode
+  translationActive = true;
+  translateBtn.textContent = '停止翻译';
+  translateBtn.classList.add('stop-mode');
   restoreBtn.style.display = 'none';
   showStatus('正在提取页面文本...', 'info');
 
   const response = await sendToContentScript(tab.id, 'translatePage', { from, to });
 
+  translationActive = false;
+  translateBtn.textContent = '翻译页面';
+  translateBtn.classList.remove('stop-mode');
+
   if (response === null) {
-    resetButton();
     return;
   }
 
@@ -174,13 +193,15 @@ translateBtn.addEventListener('click', async () => {
     showStatus('✅ 翻译完成！已处理 ' + (response.count || 0) + ' 段文本。', 'success');
     restoreBtn.style.display = 'block';
   } else if (response && response.error) {
-    showStatus('翻译失败: ' + response.error, 'error');
+    if (response.error === '正在翻译中，请勿重复点击') {
+      // Already shown
+    } else {
+      showStatus('翻译失败: ' + response.error, 'error');
+    }
   } else {
     showStatus('翻译完成', 'success');
     restoreBtn.style.display = 'block';
   }
-
-  resetButton();
 });
 
 // Handle restore button click
@@ -195,12 +216,6 @@ restoreBtn.addEventListener('click', async () => {
     showStatus('恢复失败: ' + (response && response.error ? response.error : '未知错误'), 'error');
   }
 });
-
-function resetButton() {
-  translateBtn.disabled = false;
-  translateBtn.classList.remove('translating');
-  translateBtn.textContent = '翻译页面';
-}
 
 // Listen for progress updates from content script
 chrome.runtime.onMessage.addListener((message) => {
